@@ -1,0 +1,91 @@
+---
+title: Smart Proxy Manager
+description: Automatic proxy rotation, health-checking, and self-healing.
+sidebar:
+  order: 3
+---
+
+The `SmartProxy` class wraps `ASocksClient` to provide a high-level proxy pool with **automatic rotation**, **health checking**, and **self-healing**.
+
+## How it works
+
+1. **Initialize** a pool of proxies matching your criteria (country, protocol, type).
+2. **Request a proxy** — `SmartProxy` returns the next healthy proxy URL.
+3. **Auto-heal** — if a proxy fails, it is automatically replaced. No fatal errors are raised.
+
+## Basic usage
+
+```python
+import asyncio
+from asocks import ASocksClient, SmartProxy
+
+async def main():
+    async with ASocksClient(api_key="sk-...") as client:
+        smart = SmartProxy(client, country_code="US")
+        await smart.initialize(pool_size=5)
+
+        proxy_url = await smart.get_proxy()
+        print(proxy_url)  # socks5://user:pass@host:port
+
+asyncio.run(main())
+```
+
+## Pool management
+
+### Get all proxy URLs
+
+```python
+urls = await smart.get_all_proxies()
+```
+
+### Health-check the entire pool
+
+```python
+results = await smart.health_check_all()
+# {1001: True, 1002: False, 1003: True}
+```
+
+### Refresh unhealthy proxies
+
+```python
+replaced = await smart.refresh_pool()
+print(f"{replaced} proxies were replaced")
+```
+
+## Configuration
+
+| Parameter          | Type           | Default                             | Description                     |
+| ------------------ | -------------- | ----------------------------------- | ------------------------------- |
+| `client`           | `ASocksClient` | _required_                          | The API client instance         |
+| `country_code`     | `str`          | `""`                                | ISO country code filter         |
+| `city`             | `str`          | `""`                                | City filter                     |
+| `health_check_url` | `str`          | `https://api.ipify.org?format=json` | URL used for health checks      |
+| `health_timeout`   | `float`        | `10.0`                              | Health check timeout in seconds |
+
+## Using with httpx
+
+```python
+import httpx
+from asocks import ASocksClient, SmartProxy
+
+async def scrape():
+    async with ASocksClient(api_key="sk-...") as client:
+        smart = SmartProxy(client, country="US")
+        await smart.initialize(pool_size=3)
+
+        proxy_url = await smart.get_proxy()
+        async with httpx.AsyncClient(proxy=proxy_url) as http:
+            resp = await http.get("https://example.com")
+            print(resp.status_code)
+```
+
+## Error handling
+
+```python
+from asocks.exceptions import NoAvailableProxyError
+
+try:
+    proxy = await smart.get_proxy()
+except NoAvailableProxyError:
+    print("All proxies failed — check your account or criteria")
+```

@@ -1,0 +1,85 @@
+---
+title: Smart Proxy Manager
+description: Automatic health checking, rotation, and self-healing.
+sidebar:
+  order: 2
+---
+
+SmartProxy — high-level proxy manager with auto-rotation and self-healing.
+
+Abstracts the complexity of proxy lifecycle management: creates proxies,
+checks their health, and transparently replaces dead ones.
+
+Example::
+
+    async with ASocksClient(api_key="key") as client:
+        smart = SmartProxy(client, country_code="US", pool_size=5)
+        await smart.initialize()
+
+        proxy = await smart.get_proxy()
+        print(proxy)  # socks5://user:pass@host:port
+
+## `SmartProxy`
+
+High-level proxy manager with automatic rotation and self-healing.
+
+On each :meth:`get_proxy` call the manager returns the next
+healthy proxy from the pool.  When a proxy fails a health check
+it is replaced transparently via the ASocks API.
+
+Args:
+    client: :class:`ASocksClient` instance.
+    country_code: ISO country code for proxies.
+    city: City filter (optional).
+    state: State filter (optional).
+    pool_size: Number of proxies to maintain.
+    type_id: Connection type (1=keep-proxy, 2=keep-connection, 3=rotate).
+    proxy_type_id: Proxy type (1=residential, 3=mobile, 4=corporate).
+    server_port_type_id: Port type (0=shared, 1=dedicated).
+    ttl: Port lifetime in days.
+    traffic_limit: Traffic limit in GB.
+    health_check_url: URL used for health checks.
+    health_timeout: Health-check timeout in seconds.
+
+### `get_all_proxies(self) -> list[str]`
+
+Return URLs for every proxy currently in the pool.
+
+### `get_proxy(self) -> str`
+
+Return the next healthy proxy URL (round-robin).
+
+Runs a health check on the candidate.  If it fails, the
+proxy is replaced automatically and the next one is tried.
+
+Raises:
+    NoAvailableProxyError: Pool is empty.
+
+### `health_check_all(self) -> dict[int, bool]`
+
+Check all proxies in parallel.
+
+Returns:
+    Mapping of ``port_id → is_healthy``.
+
+### `initialize(self, pool_size: int | None = None) -> None`
+
+Populate the proxy pool.
+
+Loads existing active ports that match the criteria.
+Creates new ones if fewer than *pool_size* are available.
+
+Args:
+    pool_size: Override pool size set in constructor.
+
+### `pool_size` (property)
+
+Current number of proxies in the pool.
+
+### `refresh_pool(self) -> int`
+
+Replace all unhealthy proxies.
+
+Returns:
+    Number of proxies replaced.
+

@@ -1,0 +1,44 @@
+---
+title: ASocks Python Library
+description: Premium Python library and CLI for the ASocks Proxy API.
+template: splash
+hero:
+  tagline: Fully typed async client, smart proxy manager, and powerful CLI — all in one package.
+  image:
+    file: ../../assets/houston.webp
+  actions:
+    - text: Quick Start
+      link: /asockslib/guides/quickstart/
+      icon: right-arrow
+    - text: API Reference
+      link: /asockslib/reference/client/
+      icon: external
+      variant: minimal
+---
+
+import { Card, CardGrid } from "@astrojs/starlight/components";
+
+## Features
+
+<CardGrid stagger>
+  <Card title="Async API Client" icon="rocket">
+    Fully typed async HTTP client built on `httpx` with automatic retries,
+    rate-limit handling, and Pydantic models.
+  </Card>
+  <Card title="Smart Proxy Manager" icon="random">
+    Automatic health-checking, proxy rotation, and self-healing — failed proxies
+    are seamlessly replaced.
+  </Card>
+  <Card title="ProxyPool — Zero Traffic" icon="star">
+    Intelligent proxy pool for 10,000+ accounts. Auto-detects dead proxies via API
+    (zero traffic waste) and replaces them transparently.
+  </Card>
+  <Card title="Powerful CLI" icon="laptop">
+    Generate, list, and manage proxies from the terminal. Export to `.txt`,
+    `.json`, or `.csv`. Interactive wizard for quick setup.
+  </Card>
+  <Card title="100% Type Safe" icon="approve-check">
+    Strict `mypy` and `pyright` compliance with `beartype` runtime checks on
+    every public API.
+  </Card>
+</CardGrid>

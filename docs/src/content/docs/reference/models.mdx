@@ -1,0 +1,21 @@
+---
+title: Data Models
+description: Pydantic models for API requests and responses.
+sidebar:
+  order: 4
+---
+
+Pydantic models for ASocks API v2 requests and responses.
+
+Covers all 25 endpoints documented at https://docs.asocks.com/en/.
+
+Modules:
+    - :mod:`.enums` — port statuses and connection/proxy type identifiers.
+    - :mod:`.directory` — countries, states, cities, ASN entries.
+    - :mod:`.port` — proxy port models and list responses.
+    - :mod:`.requests` — bodies and query parameters for mutations.
+    - :mod:`.responses` — typed wrappers for API responses.
+
+Every model uses ``extra="allow"`` so that new fields added by the API
+are accepted without breaking existing code.
+

@@ -1,0 +1,58 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+build/
+dist/
+wheels/
+*.egg-info/
+*.egg
+.eggs/
+sdist/
+
+# Virtual environments
+.venv/
+venv/
+ENV/
+
+# Type checkers
+.mypy_cache/
+.pyright/
+.ruff_cache/
+.pytest_cache/
+
+# Coverage
+htmlcov/
+.coverage
+.coverage.*
+coverage.xml
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Environment variables
+.env
+.env.local
+.env.*.local
+
+# Distribution / packaging
+*.whl
+*.tar.gz
+
+# Docs build (Astro)
+docs/dist/
+docs/.astro/
+docs/node_modules/
+
+# uv
+uv.lock

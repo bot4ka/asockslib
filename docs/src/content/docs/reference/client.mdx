@@ -1,0 +1,175 @@
+---
+title: API Client
+description: Async HTTP client for ASocks API v2.
+sidebar:
+  order: 1
+---
+
+Async HTTP client for the ASocks REST API v2.
+
+Covers all 25 endpoints at https://docs.asocks.com/en/.
+
+Features:
+    - Automatic retry with configurable exponential back-off on rate-limit
+      (HTTP 429), server errors (HTTP 5xx) and transient network failures.
+    - Non-idempotent requests (POST) are never retried on network/5xx errors
+      so that a create-port call can never be silently duplicated.
+    - Typed exceptions for every error HTTP status; network failures are
+      wrapped in :class:`APIConnectionError`.
+    - Authentication via ``apiKey`` query parameter.
+
+## `ASocksClient`
+
+Async client for the ASocks Proxy API v2.
+
+Use as an async context manager so the HTTP session is
+closed automatically::
+
+    async with ASocksClient(api_key="key") as client:
+        balance = await client.get_balance()
+
+Args:
+    api_key: ASocks API key.
+    base_url: API base URL (default ``https://api.asocks.com``).
+    timeout: HTTP request timeout in seconds.
+    max_retries: Maximum number of attempts for a retryable request
+        (HTTP 429, HTTP 5xx and transient network errors). ``1`` disables
+        retrying. Applies per request.
+    retry_backoff_base: Base delay in seconds for exponential back-off
+        (attempt *n* waits ``base * 2**(n-1)`` seconds, capped at
+        *retry_backoff_max*). Set to ``0`` to retry with no delay.
+    retry_backoff_max: Upper bound on the back-off delay in seconds.
+
+### `add_whitelist_ip(self, request: asockslib.models.requests.WhitelistAddRequest) -> dict[str, typing.Any]`
+
+Add an IP to the whitelist.  ``POST /v2/whitelist/add``
+
+### `archive_port(self, port_id: int) -> bool`
+
+Archive a proxy port.  ``PATCH /v2/proxy/archive-port``
+
+### `change_credentials(self) -> bool`
+
+Regenerate credentials for all ports.  ``GET /v2/proxy/change-credentials``
+
+### `change_port_name(self, port_id: int, name: str) -> bool`
+
+Rename a proxy port.  ``PATCH /v2/proxy/change-name``
+
+### `close(self) -> 'None'`
+
+Close the underlying HTTP client.
+
+### `create_ports(self, request: asockslib.models.requests.CreatePortRequest) -> list[asockslib.models.port.PortInfo]`
+
+Create proxy ports.  ``POST /v2/proxy/create-port``
+
+Raises:
+    InsufficientBalanceError: Not enough funds.
+
+### `create_template(self, request: asockslib.models.requests.CreateTemplateRequest) -> dict[str, typing.Any]`
+
+Create a proxy template.  ``POST /v2/proxy-template/create-template``
+
+### `delete_port(self, port_id: int) -> bool`
+
+Delete a proxy port.  ``DELETE /v2/proxy/delete-port``
+
+### `delete_template(self, template_id: int) -> bool`
+
+Delete a proxy template.  ``DELETE /v2/proxy-template/delete-template``
+
+### `delete_whitelist_ip(self, ip: str) -> bool`
+
+Remove an IP from the whitelist.  ``DELETE /v2/whitelist/delete``
+
+### `get_asns(self, country_id: int | None = None, state_id: int | None = None, city_id: int | None = None, page: int | None = None) -> asockslib.models.directory.ASNListResponse`
+
+List ASN entries.  ``GET /v2/dir/asns``
+
+Args:
+    country_id: Filter by country.
+    state_id: Filter by state.
+    city_id: Filter by city.
+    page: Pagination page number.
+
+### `get_balance(self) -> asockslib.models.responses.BalanceResponse`
+
+Get account balance.  ``GET /v2/user/balance``
+
+### `get_cities(self, country_id: int | None = None, state_id: int | None = None) -> list[asockslib.models.directory.CityInfo]`
+
+List cities.  ``GET /v2/dir/cities``
+
+Args:
+    country_id: Filter by country ID.
+    state_id: Filter by state ID.
+
+### `get_countries(self) -> list[asockslib.models.directory.CountryInfo]`
+
+List available countries.  ``GET /v2/dir/countries``
+
+### `get_plan_info(self, show_proxies: str = '') -> dict[str, typing.Any]`
+
+Get subscription plan info.  ``GET /v2/plan/info``
+
+Args:
+    show_proxies: Optional proxy type filter
+        (``"all"``, ``"mobile"``, ``"residential"``, ``"corporate"``).
+
+### `get_port(self, port_id: int) -> asockslib.models.port.PortInfo`
+
+Get detailed port info.  ``GET /v2/proxy/port-info``
+
+Raises:
+    PortNotFoundError: Port does not exist.
+
+### `get_states(self, country_id: int | None = None) -> list[asockslib.models.directory.StateInfo]`
+
+List states/regions.  ``GET /v2/dir/states``
+
+Args:
+    country_id: Filter by country ID.
+
+### `get_total_spent_traffic(self) -> dict[str, typing.Any]`
+
+Get total spent traffic.  ``GET /v2/proxy/total-spent-traffic``
+
+### `list_ports(self, filters: asockslib.models.requests.PortFilterParams | None = None) -> asockslib.models.port.PortListResponse`
+
+List proxy ports.  ``GET /v2/proxy/ports``
+
+Args:
+    filters: Optional query filters.
+
+### `list_templates(self, page: int = 1) -> dict[str, typing.Any]`
+
+List proxy templates.  ``GET /v2/proxy-template``
+
+### `refresh_ip(self, port_id: int) -> bool`
+
+Refresh the external IP of a port.  ``GET /v2/proxy/refresh/\{portId\}``
+
+### `search_proxies(self, country: str = '', limit: int = 1, types: list[str] | None = None) -> list[str]`
+
+Search available proxies.  ``GET /v2/proxy/search``
+
+Returns:
+    List of ``"IP:port"`` strings.
+
+### `unarchive_port(self, port_id: int) -> bool`
+
+Restore a port from the archive.  ``PATCH /v2/proxy/unarchive``
+
+### `update_port(self, port_id: int, request: asockslib.models.requests.UpdatePortRequest) -> dict[str, typing.Any]`
+
+Update port parameters.  ``PATCH /v2/proxy/update-port/\{id\}``
+
+### `update_port_credentials(self, port_id: int, password: str) -> dict[str, typing.Any]`
+
+Update credentials for a single port.  ``PUT /v2/proxy/\{id\}/update-credentials``
+
+### `update_template(self, template_id: int, request: asockslib.models.requests.UpdateTemplateRequest) -> dict[str, typing.Any]`
+
+Update a proxy template.  ``PATCH /v2/proxy-template/update-template``
+

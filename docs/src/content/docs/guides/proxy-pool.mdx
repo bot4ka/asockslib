@@ -1,0 +1,247 @@
+---
+title: ProxyPool — Zero-Traffic Proxy Manager
+description: Intelligent proxy pool that manages thousands of accounts without wasting traffic on health checks.
+sidebar:
+  order: 4
+---
+
+import { Aside } from "@astrojs/starlight/components";
+
+`ProxyPool` is the **killer feature** of asockslib — an intelligent proxy management system designed for developers managing **thousands of accounts** who don't want to deal with proxy failures manually.
+
+<Aside type="tip">
+Unlike SmartProxy which uses HTTP requests through proxies for health checking (consuming traffic), ProxyPool checks proxy status via the ASocks REST API — **zero traffic wasted**.
+</Aside>
+
+## How it works
+
+1. **Initialize** — ProxyPool creates a pool of proxy ports via the ASocks API.
+2. **Assign** — Each account gets a stable proxy URL (`STICKY` strategy by default).
+3. **Report failure** — When a connection fails, you call `report_failure()`.
+4. **Auto-replace** — ProxyPool checks the port status via API (not through the proxy!) and, if dead, automatically creates a replacement with identical parameters.
+5. **Transparent** — The account gets a new proxy URL on the next `get_proxy()` call.
+
+## Quick start
+
+```python
+import asyncio
+from asockslib import ASocksClient, ProxyPool
+
+async def main():
+    async with ASocksClient(api_key="sk-...") as client:
+        pool = ProxyPool(
+            client,
+            country_code="US",
+            pool_size=50,           # 50 proxy slots
+            type_id=1,              # keep-proxy (highest trust)
+            proxy_type_id=1,        # residential
+            server_port_type_id=1,  # dedicated
+            traffic_limit=10,       # 10 GB per port
+        )
+        await pool.initialize()
+
+        # Get proxy for an account
+        url = await pool.get_proxy("account_42")
+        print(url)  # socks5://user:pass@proxy.asocks.com:10042
+
+        # On connection failure
+        try:
+            await do_request(url)
+        except ConnectionError:
+            await pool.report_failure("account_42")
+            url = await pool.get_proxy("account_42")  # new proxy!
+
+        await pool.shutdown()
+
+asyncio.run(main())
+```
+
+## Assignment strategies
+
+### STICKY (default)
+
+Each account is assigned to one proxy. The proxy is only replaced when it fails.
+
+```python
+pool = ProxyPool(client, strategy=PoolStrategy.STICKY)
+```
+
+**Best for:** Account farming, social media automation, any scenario where each account must have a consistent IP.
+
+### ROUND_ROBIN
+
+Each `get_proxy()` call returns the next proxy in the pool.
+
+```python
+from asockslib import PoolStrategy
+
+pool = ProxyPool(client, strategy=PoolStrategy.ROUND_ROBIN)
+```
+
+**Best for:** Web scraping, data collection — distributes load evenly.
+
+### RANDOM
+
+Each call returns a random alive proxy.
+
+```python
+pool = ProxyPool(client, strategy=PoolStrategy.RANDOM)
+```
+
+**Best for:** One-off requests, high anonymity needs.
+
+## Failure handling
+
+ProxyPool uses a **threshold-based** approach:
+
+1. Each `report_failure()` increments a counter.
+2. When the counter reaches `failure_threshold` (default: 3), the pool checks the port status via API.
+3. If the API confirms the port is dead → replacement is created automatically.
+4. If the API says the port is alive → the counter is reset (maybe it was a temporary issue).
+
+```python
+pool = ProxyPool(
+    client,
+    failure_threshold=3,  # number of failures before checking
+)
+
+# Typical usage pattern
+for attempt in range(5):
+    url = await pool.get_proxy("account_1")
+    try:
+        result = await do_request(url)
+        break
+    except ConnectionError:
+        replaced = await pool.report_failure("account_1")
+        if replaced:
+            print("Proxy was replaced, retrying...")
+```
+
+## Bulk operations
+
+```python
+# Get proxies for multiple accounts at once
+mapping = await pool.get_proxies(["acc1", "acc2", "acc3", "acc4"])
+# \{"acc1": "socks5://...", "acc2": "socks5://...", ...\}
+
+# Report multiple failures
+results = await pool.report_failures(["acc1", "acc3"])
+# \{"acc1": True, "acc3": False\}  (True = proxy was replaced)
+```
+
+## Force replacement
+
+Skip the threshold — immediately replace a proxy:
+
+```python
+new_url = await pool.force_replace("account_42")
+if new_url:
+    print(f"New proxy: \{new_url\}")
+```
+
+## Pool health monitoring
+
+Check all proxies via the API (zero traffic):
+
+```python
+stats = await pool.check_pool_health()
+print(f"Alive: \{stats.alive\}/\{stats.total\}")
+print(f"Dead: \{stats.dead\}")
+print(f"Total replacements: \{stats.replaced\}")
+print(f"API checks: \{stats.api_checks\}")
+```
+
+Replace all dead proxies in one call:
+
+```python
+replaced = await pool.replace_dead_proxies()
+print(f"Replaced \{replaced\} proxies")
+```
+
+## Background monitoring
+
+Enable automatic periodic checks via the API:
+
+```python
+pool = ProxyPool(
+    client,
+    monitor_interval=300,  # check every 5 minutes
+)
+await pool.initialize()
+# Background task is now running
+# ...
+await pool.shutdown()  # stops the monitor
+```
+
+## Persistence across restarts
+
+The `account_id → port_id` mapping lives in memory. To survive a process
+restart (essential when pinning 100,000+ accounts to dedicated proxies),
+supply a `ProxyStore` — any object with async `load`, `save`, and `delete`
+methods. Bindings are saved on assignment/replacement, removed on release,
+and restored during `initialize()`. Store errors are logged, never fatal.
+
+```python
+class RedisStore:  # back it with Redis, SQL, a file — your choice
+    async def load(self) -> dict[str, int]: ...
+    async def save(self, account_id: str, port_id: int) -> None: ...
+    async def delete(self, account_id: str) -> None: ...
+
+pool = ProxyPool(client, country_code="US", pool_size=1000, store=RedisStore())
+await pool.initialize()  # restores previously persisted bindings
+```
+
+<Aside type="note">
+Bindings persist the ASocks **port id**, not the URL. After a proxy is
+replaced the port id changes, and the store is updated automatically — so a
+restart always reconnects each account to its current live proxy.
+</Aside>
+
+## Best-by-ping selection (benchmark on init)
+
+By default `initialize()` is zero-traffic. Set `benchmark_on_init=True` to
+over-provision, ping every candidate, and keep only the fastest `pool_size`.
+Ports the pool created but discarded are deleted; pre-existing ports are kept.
+
+```python
+pool = ProxyPool(
+    client, country_code="US", pool_size=100,
+    benchmark_on_init=True,
+    benchmark_oversample=2.0,   # create/test ~200, keep fastest 100
+    benchmark_timeout=5.0,
+)
+await pool.initialize()
+```
+
+## Configuration reference
+
+| Parameter              | Type           | Default   | Description                                    |
+| ---------------------- | -------------- | --------- | ---------------------------------------------- |
+| `client`               | `ASocksClient` | required  | API client instance                            |
+| `country_code`         | `str`          | `""`      | ISO country code                               |
+| `city`                 | `str`          | `""`      | City filter                                    |
+| `state`                | `str`          | `""`      | State filter                                   |
+| `pool_size`            | `int`          | `10`      | Number of proxy slots                          |
+| `type_id`              | `int`          | `1`       | Connection type (1=keep, 2=keep-conn, 3=rotate)|
+| `proxy_type_id`        | `int`          | `1`       | Proxy type (1=residential, 3=mobile, etc.)     |
+| `server_port_type_id`  | `int`          | `1`       | Port type (0=shared, 1=dedicated)              |
+| `ttl`                  | `int`          | `1`       | Time-to-live in days                           |
+| `traffic_limit`        | `int`          | `10`      | Traffic limit in GB                            |
+| `strategy`             | `PoolStrategy` | `STICKY`  | Assignment strategy                            |
+| `failure_threshold`    | `int`          | `3`       | Failures before API check                      |
+| `monitor_interval`     | `float`        | `0`       | Background check interval (0=disabled)         |
+| `store`                | `ProxyStore?`  | `None`    | Persist bindings across restarts     |
+| `benchmark_on_init`    | `bool`         | `False`   | Ping candidates on init, keep fastest|
+| `benchmark_oversample` | `float`        | `2.0`     | Candidate multiplier when benchmarking|
+| `benchmark_timeout`    | `float`        | `5.0`     | Per-proxy ping timeout (benchmark)   |
+
+## SmartProxy vs ProxyPool
+
+| Feature                | SmartProxy          | ProxyPool                      |
+| ---------------------- | ------------------- | ------------------------------ |
+| Health checking        | HTTP through proxy  | ASocks API (zero traffic)      |
+| Traffic consumption    | High                | Zero for health checks         |
+| Account mapping        | No                  | Yes (STICKY + persistence)     |
+| Scale                  | 5-20 proxies        | 100,000+ accounts              |
+| Failure detection      | Proactive (polling) | Reactive (on report_failure)   |
+| Use case               | Simple rotation     | Mass account management        |

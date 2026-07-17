@@ -1,0 +1,152 @@
+---
+title: Usage Examples
+description: Copy-paste examples — one-liner, client, SmartProxy, ProxyPool, persistence, failover, error handling.
+sidebar:
+  order: 2
+---
+
+Practical, copy-paste examples for every layer of the library.
+
+## Install & authenticate
+
+```bash
+pip install asockslib          # or: uv add asockslib
+export ASOCKS_API_KEY="sk-your-api-key"
+```
+
+## 1. One-liner — just give me proxies
+
+```python
+import asyncio
+from asockslib import get_proxies, get_proxies_sync
+
+# async
+urls = asyncio.run(get_proxies("US", count=10))
+
+# sync (scripts / notebooks)
+urls = get_proxies_sync("US", count=5, verify=True)  # verify=True pings & keeps alive
+print(urls[0])  # socks5://user:pass@host:port
+```
+
+## 2. Full API client
+
+```python
+import asyncio
+from asockslib import ASocksClient, CreatePortRequest, PortFilterParams
+
+async def main():
+    async with ASocksClient(api_key="sk-...") as client:
+        balance = await client.get_balance()
+        print(f"Balance: ${balance.balance:.2f}")
+
+        ports = await client.create_ports(
+            CreatePortRequest(country_code="US", city="New York", count=5)
+        )
+        for p in ports:
+            print(p.proxy_url)
+
+        existing = await client.list_ports(PortFilterParams(countryName="US"))
+        print(f"{existing.total} ports total")
+
+asyncio.run(main())
+```
+
+## 3. Use a proxy with httpx
+
+```python
+import httpx
+from asockslib import get_proxies
+
+urls = await get_proxies("DE", count=1)
+async with httpx.AsyncClient(proxy=urls[0]) as http:
+    resp = await http.get("https://api.ipify.org?format=json")
+    print(resp.json())  # IP seen through the proxy
+```
+
+## 4. SmartProxy — auto-rotation & self-healing
+
+```python
+from asockslib import ASocksClient, SmartProxy
+
+async with ASocksClient(api_key="sk-...") as client:
+    smart = SmartProxy(client, country_code="US")
+    await smart.initialize(pool_size=5)
+
+    url = await smart.get_proxy()   # health-checked; dead proxies auto-replaced
+```
+
+## 5. ProxyPool — 100,000+ accounts, sticky + failover + geo
+
+```python
+from asockslib import ASocksClient, ProxyPool, PoolStrategy
+
+async with ASocksClient(api_key="sk-...") as client:
+    pool = ProxyPool(
+        client,
+        country_code="US", city="New York",   # geo-targeting: country + city
+        pool_size=500,
+        strategy=PoolStrategy.STICKY,          # each account pinned to its own proxy
+    )
+    await pool.initialize()
+
+    url = await pool.get_proxy("account_42")   # stable per-account assignment
+    try:
+        ...  # use url
+    except ConnectionError:
+        await pool.report_failure("account_42")     # checks port via API (zero traffic)
+        url = await pool.get_proxy("account_42")     # same account, new same-geo proxy
+    await pool.shutdown()
+```
+
+## 6. Persistence across restarts
+
+```python
+class RedisStore:  # back it with Redis / SQL / a file — your choice
+    async def load(self) -> dict[str, int]: ...
+    async def save(self, account_id: str, port_id: int) -> None: ...
+    async def delete(self, account_id: str) -> None: ...
+
+pool = ProxyPool(client, country_code="US", pool_size=1000, store=RedisStore())
+await pool.initialize()   # restores account -> port bindings from the store
+```
+
+## 7. Ping-ranked pool (benchmark on init)
+
+```python
+pool = ProxyPool(
+    client, country_code="US", pool_size=100,
+    benchmark_on_init=True, benchmark_oversample=2.0,  # test ~200, keep fastest 100
+)
+await pool.initialize()
+```
+
+## 8. Configurable retries & typed errors
+
+```python
+from asockslib import ASocksClient, APIConnectionError, RateLimitError, ASocksError
+
+client = ASocksClient(
+    api_key="sk-...",
+    max_retries=5,          # retries 429 / 5xx / network with exponential back-off
+    retry_backoff_base=1.0,
+    retry_backoff_max=30.0,
+)
+try:
+    await client.get_balance()
+except APIConnectionError:   # network unreachable after all retries
+    ...
+except RateLimitError:       # 429 after all retries
+    ...
+except ASocksError as e:     # any library error — has .status_code / .message
+    print(e.status_code, e.message)
+```
+
+## 9. Benchmark & pick the fastest
+
+```python
+from asockslib import ASocksClient, find_best_proxies
+
+async with ASocksClient(api_key="sk-...") as client:
+    result = await find_best_proxies(client, country_code="US", total=100, keep=10)
+    print(result.best[0].proxy_url, result.best[0].latency_ms, "ms")
+```

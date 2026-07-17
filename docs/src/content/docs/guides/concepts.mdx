@@ -1,0 +1,158 @@
+---
+title: Proxy Concepts
+description: Understanding proxies, ports, connection types, and proxy types — a beginner-friendly guide.
+sidebar:
+  order: 0
+---
+
+import { Aside, Card, CardGrid } from "@astrojs/starlight/components";
+
+This guide explains the fundamental concepts you need to understand before working with proxies and the ASocks API.
+
+## What is a proxy?
+
+A **proxy server** is a computer that acts as an intermediary between your device and the internet. When you use a proxy, your web requests go through the proxy server first, which then forwards them to the target website. The website sees the proxy's IP address instead of yours.
+
+**Why use proxies?**
+
+- **Anonymity** — hide your real IP address
+- **Geo-targeting** — access content from different countries
+- **Web scraping** — avoid IP bans and rate limiting
+- **Account management** — each account gets a unique IP
+
+## What is a port?
+
+In the context of ASocks, a **port** is your personal proxy connection endpoint. When you create a port, ASocks allocates:
+
+- A **host** address (e.g. `proxy.asocks.com`)
+- A **port number** (e.g. `10001`)
+- **Login** and **password** for authentication
+
+Together they form a proxy URL: `socks5://login:password@proxy.asocks.com:10001`
+
+<Aside type="note">
+One port = one proxy connection. If you need 100 proxies for 100 accounts, you create 100 ports.
+</Aside>
+
+## Proxy types
+
+ASocks offers different types of proxies based on the source of IP addresses:
+
+<CardGrid>
+  <Card title="Residential" icon="home">
+    IP addresses from real home internet connections (ISPs). Highest trust level — websites see them as regular users. Best for account management and social media.
+  </Card>
+  <Card title="Mobile" icon="phone">
+    IP addresses from mobile operators (4G/5G). Very high trust — mobile IPs are shared among many users naturally. Great for social media automation.
+  </Card>
+  <Card title="Corporate" icon="building">
+    IP addresses from corporate networks. Medium trust level. Suitable for business applications and B2B scenarios.
+  </Card>
+</CardGrid>
+
+| proxy_type_id | Name        | Trust Level | Best For                     |
+| ------------- | ----------- | ----------- | ---------------------------- |
+| 1             | Residential | Highest     | Social media, account farming|
+| 2             | All         | Mixed       | General use                  |
+| 3             | Mobile      | Very High   | Social media, high anonymity |
+| 4             | Corporate   | Medium      | Business, B2B                |
+
+## Connection types
+
+The **connection type** determines how your proxy handles IP rotation:
+
+### Keep Proxy (type_id=1) — Highest Trust
+
+You get a **fixed proxy** that maintains the same IP for the entire lifetime of the port. The IP never changes unless you explicitly refresh it.
+
+**Use when:** You need a stable IP for an account (e.g., one proxy per social media account).
+
+### Keep Connection (type_id=2) — High Trust
+
+The proxy IP may change between connections, but ASocks selects a new IP from the **same subnet or ASN** — so the target website sees a "similar" IP.
+
+**Use when:** You need reasonable IP consistency but can tolerate occasional changes.
+
+### Rotate Connection (type_id=3) — Maximum Anonymity
+
+A **new IP** is assigned for every connection. Maximum anonymity but lowest trust.
+
+**Use when:** Web scraping, data collection — each request from a different IP.
+
+| type_id | Name              | IP Behavior           | Trust   | Best For          |
+| ------- | ----------------- | --------------------- | ------- | ----------------- |
+| 1       | Keep Proxy        | Fixed IP              | Highest | Account farming   |
+| 2       | Keep Connection   | Same subnet/ASN       | High    | Browsing, general |
+| 3       | Rotate Connection | New IP per connection  | Low     | Scraping          |
+
+## Server port types
+
+### Shared (server_port_type_id=0)
+
+A **free** port that shares server resources with other users. No traffic limit configuration needed.
+
+**Best for:** Testing, low-volume use, getting started.
+
+### Dedicated (server_port_type_id=1)
+
+A **paid** port with dedicated resources and a configurable **traffic limit** (in GB). You pay for the traffic you allocate.
+
+**Best for:** Production use, high-volume traffic, guaranteed performance.
+
+<Aside type="caution">
+Dedicated ports require a `traffic_limit` parameter (minimum 1 GB). This is the amount of traffic you purchase for this port.
+</Aside>
+
+| server_port_type_id | Name      | Cost | Traffic Limit | Best For     |
+| ------------------- | --------- | ---- | ------------- | ------------ |
+| 0                   | Shared    | Free | N/A           | Testing      |
+| 1                   | Dedicated | Paid | Required (GB) | Production   |
+
+## ASN (Autonomous System Number)
+
+An **ASN** identifies a specific internet provider. For example:
+
+- AS13335 — Cloudflare
+- AS15169 — Google
+- AS32934 — Facebook
+
+When creating a proxy, you can optionally specify an ASN to get an IP from a specific provider. This is useful for:
+
+- Getting IPs that look like they belong to a particular ISP
+- Ensuring IP consistency for "Keep Connection" mode
+
+## Putting it all together
+
+When you create a proxy port, you choose:
+
+1. **Country** (and optionally state, city) — *where* the proxy is located
+2. **Connection type** — *how* the IP behaves
+3. **Proxy type** — *what kind* of IP (residential, mobile, corporate)
+4. **Server port type** — *shared* (free) or *dedicated* (paid)
+5. **Traffic limit** — how much traffic (only for dedicated)
+6. **TTL** — how long the port lives (in days)
+
+```python
+from asockslib import ASocksClient, CreatePortRequest
+
+async with ASocksClient(api_key="sk-...") as client:
+    req = CreatePortRequest(
+        country_code="US",          # United States
+        city="New York",            # New York City
+        type_id=1,                  # Keep Proxy (fixed IP)
+        proxy_type_id=1,            # Residential
+        server_port_type_id=1,      # Dedicated
+        traffic_limit=10,           # 10 GB
+        ttl=30,                     # 30 days
+        count=5,                    # create 5 ports
+    )
+    ports = await client.create_ports(req)
+    for p in ports:
+        print(p.proxy_url)
+```
+
+## Next steps
+
+- [Quick Start](/asockslib/guides/quickstart/) — install and make your first call
+- [ProxyPool Guide](/asockslib/guides/proxy-pool/) — automatic proxy management for thousands of accounts
+- [Smart Proxy Guide](/asockslib/guides/smart-proxy/) — health checking and rotation

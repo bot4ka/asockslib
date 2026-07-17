@@ -1,0 +1,28 @@
+---
+title: CLI Reference
+description: Command-line interface for ASocks Proxy API.
+sidebar:
+  order: 6
+---
+
+CLI for ASocks Proxy API.
+
+Two-level interface:
+
+- **Main commands** (user-facing):
+  ``wizard``, ``get``, ``balance``, ``list``, ``delete``, ``info``
+- **Raw API** (``asocks api ...``):
+  low-level ASocks API wrappers for advanced users.
+
+Requires ``ASOCKS_API_KEY`` environment variable.
+
+Examples::
+
+    asocks wizard
+    asocks get US
+    asocks get DE -n 20
+    asocks balance
+    asocks list
+    asocks delete 12345
+    asocks api countries
+

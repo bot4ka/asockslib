@@ -1,0 +1,57 @@
+---
+title: Быстрый старт
+description: Установи asockslib и сделай первый вызов API меньше чем за 2 минуты.
+sidebar:
+  order: 1
+---
+
+## Установка
+
+```bash
+pip install asockslib
+```
+
+Или через **uv**:
+
+```bash
+uv add asockslib
+```
+
+## Задай API-ключ
+
+```bash
+export ASOCKS_API_KEY="sk-ваш-ключ"
+```
+
+## Python — async
+
+```python
+import asyncio
+from asockslib import ASocksClient
+
+async def main():
+    async with ASocksClient(api_key="sk-...") as client:
+        balance = await client.get_balance()
+        print(f"Баланс: ${balance.balance}")
+
+        ports = await client.list_ports()
+        for p in ports.items:
+            print(p.proxy_url)
+
+asyncio.run(main())
+```
+
+## CLI — быстрые команды
+
+```bash
+asocks get US -n 10        # 10 прокси для US
+asocks wizard              # интерактивный мастер
+asocks list                # список твоих портов
+asocks balance             # баланс
+```
+
+## Дальше
+
+- [Примеры использования](/asockslib/ru/guides/examples/) — готовые сниппеты
+- [Smart Proxy](/asockslib/ru/guides/smart-proxy/) — авто-ротация и хилинг
+- [Proxy Pool](/asockslib/ru/guides/proxy-pool/) — тысячи аккаунтов

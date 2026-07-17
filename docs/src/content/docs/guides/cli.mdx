@@ -1,0 +1,117 @@
+---
+title: CLI Usage
+description: Complete guide to the asocks command-line interface.
+sidebar:
+  order: 2
+---
+
+The `asocks` CLI lets you generate, list, and manage proxies directly from your terminal.
+
+## Authentication
+
+Set your API key as an environment variable:
+
+```bash
+export ASOCKS_API_KEY="sk-your-api-key"
+```
+
+Or pass it directly with `--api-key`:
+
+```bash
+asocks balance --api-key sk-your-api-key
+```
+
+## Commands
+
+### `wizard` — Interactive Wizard
+
+Step-by-step country → state → city selection via fuzzy search:
+
+```bash
+asocks wizard 10
+asocks wizard 5 --format json --output proxies.json
+```
+
+### `generate`
+
+Create new proxy ports and export them.
+
+```bash
+# Generate 100 US proxies → file
+asocks generate 100 --country US --format txt --output proxies.txt
+
+# Generate with CSV output
+asocks generate 25 --format csv --output proxies.csv
+```
+
+**Options:**
+
+| Flag        | Short | Description          | Default    |
+| ----------- | ----- | -------------------- | ---------- |
+| `--country` | `-c`  | ISO country code     | _(any)_    |
+| `--format`  | `-f`  | `txt`, `json`, `csv` | `txt`      |
+| `--output`  | `-o`  | Output file path     | _(stdout)_ |
+
+### `list`
+
+List your existing proxy ports.
+
+```bash
+asocks list
+asocks list --country US
+```
+
+### `search`
+
+Search available proxies without creating ports.
+
+```bash
+asocks search 20 --country US
+asocks search 10
+```
+
+### `balance`
+
+Show your current account balance.
+
+```bash
+asocks balance
+```
+
+### `countries`
+
+List all available proxy countries.
+
+```bash
+asocks countries
+```
+
+## Export Formats
+
+### TXT (default)
+
+One proxy URL per line:
+
+```
+socks5://user:pass@host:10001
+socks5://user:pass@host:10002
+```
+
+### JSON
+
+Structured array:
+
+```json
+[
+  {"id": 1001, "host": "proxy.asocks.com", "port": 10001, "protocol": "socks5", "country": "US"}
+]
+```
+
+### CSV
+
+Tabular format with headers:
+
+```
+id,host,port,login,password,protocol,country,url
+1001,proxy.asocks.com,10001,user,pass,socks5,US,socks5://user:pass@proxy.asocks.com:10001
+```

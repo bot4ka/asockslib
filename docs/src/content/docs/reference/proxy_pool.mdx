@@ -1,0 +1,230 @@
+---
+title: ProxyPool Manager
+description: Zero-traffic intelligent proxy pool for massive account management.
+sidebar:
+  order: 3
+---
+
+ProxyPool — zero-traffic intelligent proxy pool manager.
+
+Key feature: manages account-to-proxy mappings, automatically detects
+dead proxies and replaces them **without making a single HTTP request
+through the proxy** for health checks.
+
+How it works:
+
+1. ``ProxyPool`` creates a pool of proxy ports via the ASocks API.
+2. Each account receives a *stable* proxy URL.
+3. When a connection error occurs the user calls :meth:`report_failure`.
+4. The pool checks the port status via the ASocks REST API
+   (``GET /v2/proxy/port-info``) and, if the port is dead,
+   automatically creates a replacement with identical parameters.
+5. The new proxy URL is bound to the same account — the user calls
+   :meth:`get_proxy` and gets a working URL immediately.
+
+Example::
+
+    async with ASocksClient(api_key="...") as client:
+        pool = ProxyPool(client, country_code="US", pool_size=100)
+        await pool.initialize()
+
+        url = await pool.get_proxy("account_42")
+
+        try:
+            await do_request(url)
+        except ConnectionError:
+            await pool.report_failure("account_42")
+            url = await pool.get_proxy("account_42")  # new proxy!
+
+## `PoolStrategy`
+
+Strategy for assigning proxies to accounts.
+
+Values:
+    STICKY: Each account gets one fixed proxy.
+    ROUND_ROBIN: Accounts receive proxies in round-robin order.
+    RANDOM: Random proxy from the pool on every request.
+
+### Values
+
+| Name | Value |
+|------|-------|
+| `STICKY` | `sticky` |
+| `ROUND_ROBIN` | `round_robin` |
+| `RANDOM` | `random` |
+
+## `ProxyPool`
+
+Intelligent proxy manager for large-scale projects.
+
+Designed for developers managing thousands of accounts who need
+stable proxies without manual intervention.
+
+Key principles:
+    - **Zero wasted traffic** — port status is checked via the ASocks
+      REST API, not by sending requests through the proxy.
+    - **Failure-triggered checks** — health is verified only when the
+      user reports an error via :meth:`report_failure`.
+    - **Transparent replacement** — a dead proxy is replaced with one
+      that has identical parameters; the account receives a new URL
+      automatically.
+
+Args:
+    client: :class:`ASocksClient` instance.
+    country_code: ISO country code for proxies.
+    pool_size: Number of proxies in the pool.
+    strategy: Assignment strategy (default ``STICKY``).
+    failure_threshold: Consecutive failures before a proxy is
+        considered dead.
+    monitor_interval: Background monitor interval in seconds
+        (``0`` = disabled).
+    store: Optional :class:`ProxyStore` for persisting ``account_id →
+        port_id`` bindings across restarts. When provided, STICKY
+        bindings are saved on assignment/replacement and restored during
+        :meth:`initialize`.
+    benchmark_on_init: When ``True``, :meth:`initialize` over-provisions
+        candidates (``benchmark_oversample × pool_size``), pings them and
+        keeps only the fastest *pool_size* — trading a one-off startup
+        probe for a lower-latency pool. Ports the pool itself created but
+        discarded are deleted; pre-existing ports are never deleted.
+        Default ``False`` (zero-traffic startup).
+    benchmark_oversample: Candidate multiplier when *benchmark_on_init*
+        is enabled (``>= 1.0``).
+    benchmark_timeout: Per-proxy ping timeout (seconds) during
+        benchmark-on-init.
+
+Raises:
+    ValueError: *pool_size* < 1, *failure_threshold* < 1, or
+        *benchmark_oversample* < 1.
+
+### `account_map` (property)
+
+Current ``account_id → proxy_url`` mapping (copy).
+
+### `check_pool_health(self) -> asockslib.proxy_pool.ProxyPoolStats`
+
+Check the health of the entire pool via the ASocks API.
+
+### `force_replace(self, account_id: str) -> str | None`
+
+Force-replace the proxy for an account immediately.
+
+Returns:
+    New proxy URL, or ``None`` on failure.
+
+### `get_proxies(self, account_ids: list[str]) -> dict[str, str]`
+
+Get proxies for multiple accounts in parallel.
+
+### `get_proxy(self, account_id: str | None = None) -> str`
+
+Get a proxy URL for an account.
+
+Behaviour depends on the strategy:
+    - **STICKY** — account is bound to a single proxy.
+    - **ROUND_ROBIN** — next proxy in rotation.
+    - **RANDOM** — random alive proxy.
+
+Raises:
+    NoAvailableProxyError: No alive proxies in the pool.
+
+### `initialize(self) -> None`
+
+Initialize the proxy pool.
+
+Loads existing active ports matching the criteria and creates new
+ones if fewer than *pool_size* are available. When *benchmark_on_init*
+is set, over-provisions and keeps only the fastest *pool_size*. If a
+:class:`ProxyStore` was supplied, previously persisted account
+bindings are restored.
+
+### `release_account(self, account_id: str) -> None`
+
+Unbind an account from its proxy (and remove it from the store).
+
+### `replace_dead_proxies(self) -> int`
+
+Replace all dead proxies in parallel.
+
+Returns:
+    Number of successfully replaced proxies.
+
+### `report_failure(self, account_id: str) -> bool`
+
+Report a proxy failure for an account.
+
+Increments the failure counter.  When the threshold is reached
+the port status is verified via the ASocks API and, if dead,
+replaced automatically.
+
+Returns:
+    ``True`` if the proxy was replaced.
+
+### `report_failures(self, account_ids: list[str]) -> dict[str, bool]`
+
+Report failures for multiple accounts in parallel.
+
+### `shutdown(self) -> None`
+
+Stop the pool and background monitor.
+
+### `stats` (property)
+
+Current pool statistics snapshot.
+
+## `ProxyPoolStats`
+
+Pool statistics snapshot.
+
+Attributes:
+    total: Total number of slots in the pool.
+    alive: Number of alive proxies.
+    dead: Number of dead proxies awaiting replacement.
+    replaced: Total replacements since initialization.
+    accounts: Number of bound accounts.
+    api_checks: Total API health-check calls made.
+
+## `ProxyStore`
+
+Pluggable persistence backend for ``account_id → port_id`` bindings.
+
+Implement this to make sticky assignments survive process restarts.
+The pool calls:
+
+- :meth:`load` once during :meth:`ProxyPool.initialize` to restore the
+  mapping (bindings whose port no longer exists in the pool are dropped);
+- :meth:`save` whenever an account is bound to a port or its port is
+  replaced;
+- :meth:`delete` when an account is released.
+
+All methods are async so an implementation may use Redis, a SQL database,
+a file, or any other store. Store failures are swallowed (logged, not
+raised) so persistence problems never break proxy assignment.
+
+Example (in-memory reference implementation)::
+
+    class DictStore:
+        def __init__(self) -> None:
+            self._d: dict[str, int] = \{\}
+
+        async def load(self) -> dict[str, int]:
+            return dict(self._d)
+
+        async def save(self, account_id: str, port_id: int) -> None:
+            self._d[account_id] = port_id
+
+        async def delete(self, account_id: str) -> None:
+            self._d.pop(account_id, None)
+
+### `delete(self, account_id: 'str') -> 'None'`
+
+Remove an account's persisted binding.
+
+### `load(self) -> 'dict[str, int]'`
+
+Return the persisted ``account_id → port_id`` mapping.
+
+### `save(self, account_id: 'str', port_id: 'int') -> 'None'`
+
+Persist a single ``account_id → port_id`` binding.
+

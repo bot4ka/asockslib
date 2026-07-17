@@ -1,0 +1,69 @@
+---
+title: Quick Start
+description: Install asocks and make your first API call in under 2 minutes.
+sidebar:
+  order: 1
+---
+
+## Installation
+
+```bash
+pip install asocks
+```
+
+Or with **uv**:
+
+```bash
+uv add asocks
+```
+
+## Set your API key
+
+```bash
+export ASOCKS_API_KEY="sk-your-api-key"
+```
+
+## Python — async usage
+
+```python
+import asyncio
+from asocks import ASocksClient
+
+async def main():
+    async with ASocksClient(api_key="sk-...") as client:
+        # Check balance
+        balance = await client.get_balance()
+        print(f"Balance: ${balance.balance}")
+
+        # List existing proxy ports
+        ports = await client.list_ports()
+        for p in ports.items:
+            print(p.proxy_url)
+
+asyncio.run(main())
+```
+
+## CLI — quick commands
+
+```bash
+# Generate 10 US SOCKS5 proxies
+asocks generate 10 --country US --format txt
+
+# Interactive wizard
+asocks wizard
+
+# List all your ports
+asocks list
+
+# Check account balance
+asocks balance
+
+# See all available countries
+asocks countries
+```
+
+## Next steps
+
+- [Smart Proxy Manager](/asockslib/guides/smart-proxy/) — automatic rotation & healing
+- [CLI Reference](/asockslib/guides/cli/) — full command details
+- [API Reference](/asockslib/reference/client/) — all client methods

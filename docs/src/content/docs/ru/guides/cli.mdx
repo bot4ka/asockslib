@@ -1,0 +1,50 @@
+---
+title: Использование CLI
+description: Полное руководство по командной строке asocks.
+sidebar:
+  order: 2
+---
+
+CLI `asocks` генерирует, показывает и управляет прокси прямо из терминала.
+
+## Аутентификация
+
+```bash
+export ASOCKS_API_KEY="sk-ваш-ключ"
+# или флагом:
+asocks balance --api-key sk-ваш-ключ
+```
+
+## Команды
+
+```bash
+# Интерактивный мастер (страна → регион → город)
+asocks wizard
+asocks wizard 5 --format json --output proxies.json
+
+# Генерация портов и экспорт
+asocks get US -n 10
+asocks get US -n 50 -f csv -o proxies.csv
+
+# Аккаунт
+asocks balance
+asocks list
+asocks info 12345
+asocks delete 12345
+
+# Сырой API
+asocks api countries
+asocks api generate 5 --country DE
+asocks api whitelist-add 203.0.113.42
+```
+
+## Форматы экспорта
+
+- **TXT** (по умолчанию) — по одному URL на строку.
+- **JSON** — структурированный массив.
+- **CSV** — таблица с заголовками.
+
+## Дальше
+
+- [Быстрый старт](/asockslib/ru/guides/quickstart/)
+- [Примеры использования](/asockslib/ru/guides/examples/)

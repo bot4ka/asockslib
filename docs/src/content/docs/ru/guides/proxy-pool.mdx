@@ -1,0 +1,138 @@
+---
+title: ProxyPool — пул прокси без трафика
+description: Умный пул прокси для тысяч аккаунтов без траты трафика на проверки.
+sidebar:
+  order: 4
+---
+
+`ProxyPool` — ключевая фича asockslib: умный менеджер прокси для разработчиков,
+управляющих **тысячами аккаунтов**, которым не нужно вручную возиться со сбоями.
+
+В отличие от SmartProxy (проверяет здоровье HTTP-запросами через прокси и тратит
+трафик), ProxyPool проверяет статус порта через REST API ASocks — **без трафика**.
+
+## Как работает
+
+1. **Инициализация** — пул создаёт порты через API ASocks.
+2. **Привязка** — каждый аккаунт получает стабильный URL (стратегия `STICKY`).
+3. **Сообщение о сбое** — при ошибке вызываешь `report_failure()`.
+4. **Авто-замена** — пул проверяет статус порта через API (не через прокси!) и,
+   если порт мёртв, создаёт замену с теми же параметрами.
+5. **Прозрачно** — аккаунт получает новый URL на следующем `get_proxy()`.
+
+## Быстрый старт
+
+```python
+import asyncio
+from asockslib import ASocksClient, ProxyPool, PoolStrategy
+
+async def main():
+    async with ASocksClient(api_key="sk-...") as client:
+        pool = ProxyPool(
+            client,
+            country_code="US", city="New York",   # гео: страна + город
+            pool_size=50,
+            strategy=PoolStrategy.STICKY,
+        )
+        await pool.initialize()
+
+        url = await pool.get_proxy("account_42")
+        try:
+            ...  # используем url
+        except ConnectionError:
+            await pool.report_failure("account_42")
+            url = await pool.get_proxy("account_42")  # новый прокси того же гео
+
+        await pool.shutdown()
+
+asyncio.run(main())
+```
+
+## Стратегии привязки
+
+- **STICKY** (по умолчанию) — аккаунт закреплён за одним прокси; замена только при сбое.
+  Для аккаунт-фарминга и соцсетей, где нужен стабильный IP.
+- **ROUND_ROBIN** — каждый вызов возвращает следующий прокси. Для скрапинга.
+- **RANDOM** — случайный живой прокси. Для разовых запросов.
+
+```python
+from asockslib import PoolStrategy
+pool = ProxyPool(client, strategy=PoolStrategy.ROUND_ROBIN)
+```
+
+## Обработка сбоев
+
+Пороговый подход: каждый `report_failure()` увеличивает счётчик; при достижении
+`failure_threshold` (по умолчанию 3) пул проверяет порт через API. Если мёртв —
+замена; если жив — счётчик сбрасывается.
+
+```python
+for attempt in range(5):
+    url = await pool.get_proxy("account_1")
+    try:
+        result = await do_request(url)
+        break
+    except ConnectionError:
+        replaced = await pool.report_failure("account_1")
+```
+
+## Массовые операции
+
+```python
+mapping = await pool.get_proxies(["acc1", "acc2", "acc3"])
+results = await pool.report_failures(["acc1", "acc3"])
+new_url = await pool.force_replace("account_42")  # заменить немедленно
+```
+
+## Персистентность между перезапусками
+
+Привязка `account_id → port_id` хранится в памяти. Чтобы пережить перезапуск
+процесса (важно при 100 000+ аккаунтов на выделенных прокси), передай `ProxyStore`
+— объект с async-методами `load`, `save`, `delete`. Привязки сохраняются при
+назначении/замене, удаляются при освобождении и восстанавливаются в `initialize()`.
+
+```python
+class RedisStore:
+    async def load(self) -> dict[str, int]: ...
+    async def save(self, account_id: str, port_id: int) -> None: ...
+    async def delete(self, account_id: str) -> None: ...
+
+pool = ProxyPool(client, country_code="US", pool_size=1000, store=RedisStore())
+await pool.initialize()  # восстанавливает ранее сохранённые привязки
+```
+
+## Выбор по пингу (benchmark on init)
+
+По умолчанию `initialize()` не тратит трафик. С `benchmark_on_init=True` пул
+создаёт с запасом, пингует всех кандидатов и оставляет самых быстрых `pool_size`.
+Созданные, но отброшенные порты удаляются; существующие порты не трогаются.
+
+```python
+pool = ProxyPool(
+    client, country_code="US", pool_size=100,
+    benchmark_on_init=True, benchmark_oversample=2.0,
+)
+await pool.initialize()
+```
+
+## Фоновый мониторинг
+
+```python
+pool = ProxyPool(client, monitor_interval=300)  # проверка каждые 5 минут
+await pool.initialize()
+await pool.shutdown()  # останавливает монитор
+```
+
+## Справочник параметров
+
+| Параметр               | Тип            | По умолч. | Описание                          |
+| ---------------------- | -------------- | --------- | --------------------------------- |
+| `client`               | `ASocksClient` | required  | Экземпляр клиента API             |
+| `country_code`         | `str`          | `""`      | ISO-код страны                    |
+| `city` / `state`       | `str`          | `""`      | Фильтр по городу / региону         |
+| `pool_size`            | `int`          | `10`      | Число слотов                      |
+| `strategy`             | `PoolStrategy` | `STICKY`  | Стратегия привязки                |
+| `failure_threshold`    | `int`          | `3`       | Сбоев до проверки через API       |
+| `monitor_interval`     | `float`        | `0`       | Интервал фонового монитора (0=off)|
+| `store`                | `ProxyStore?`  | `None`    | Персистентность привязок          |
+| `benchmark_on_init`    | `bool`         | `False`   | Пинг кандидатов, оставить быстрых |

@@ -1,0 +1,61 @@
+---
+title: Smart Proxy Manager
+description: Автоматическая ротация, проверка здоровья и самовосстановление прокси.
+sidebar:
+  order: 3
+---
+
+Класс `SmartProxy` оборачивает `ASocksClient` и даёт высокоуровневый пул с
+**авто-ротацией**, **проверкой здоровья** и **самовосстановлением**.
+
+## Как работает
+
+1. **Инициализация** пула прокси по критериям (страна, тип).
+2. **Запрос прокси** — `SmartProxy` возвращает следующий здоровый URL.
+3. **Самохилинг** — упавший прокси автоматически заменяется, без фатальных ошибок.
+
+## Базовое использование
+
+```python
+import asyncio
+from asockslib import ASocksClient, SmartProxy
+
+async def main():
+    async with ASocksClient(api_key="sk-...") as client:
+        smart = SmartProxy(client, country_code="US")
+        await smart.initialize(pool_size=5)
+
+        url = await smart.get_proxy()
+        print(url)  # socks5://user:pass@host:port
+
+asyncio.run(main())
+```
+
+## Управление пулом
+
+```python
+urls = await smart.get_all_proxies()      # все URL пула
+results = await smart.health_check_all()  # {1001: True, 1002: False}
+replaced = await smart.refresh_pool()     # заменить нездоровые
+```
+
+## Обработка ошибок
+
+```python
+from asockslib import NoAvailableProxyError
+
+try:
+    proxy = await smart.get_proxy()
+except NoAvailableProxyError:
+    print("Все прокси упали — проверь аккаунт или критерии")
+```
+
+## SmartProxy или ProxyPool?
+
+| Свойство            | SmartProxy         | ProxyPool                    |
+| ------------------- | ------------------ | ---------------------------- |
+| Проверка здоровья   | HTTP через прокси  | ASocks API (без трафика)     |
+| Расход трафика      | Высокий            | Нулевой на проверки          |
+| Привязка аккаунтов  | Нет                | Да (STICKY + персистентность)|
+| Масштаб             | 5–20 прокси        | 100 000+ аккаунтов           |
+| Сценарий            | Простая ротация    | Массовые аккаунты            |

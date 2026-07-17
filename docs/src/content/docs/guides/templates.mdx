@@ -1,0 +1,114 @@
+---
+title: Proxy Templates
+description: Customize proxy output format using templates with placeholders.
+sidebar:
+  order: 6
+---
+
+import { Aside, Code, Tabs, TabItem } from '@astrojs/starlight/components';
+
+Proxy templates let you control **how proxy credentials are formatted** —
+whether you need a simple URL, an `ip:port:login:pass` string, or a
+custom format for a tool like AdsPower, Dolphin Anty, or GoLogin.
+
+## What is a proxy template?
+
+A **template** is a string with placeholders that get replaced with actual
+proxy data when you call `format_with_template()` on a `PortInfo` object.
+
+### Available placeholders
+
+| Placeholder | Description |
+|------------|-------------|
+| `\{protocol\}` | Proxy protocol (`socks5`, `http`, …) |
+| `\{ip\}` | Proxy host address |
+| `\{port\}` | Proxy port number |
+| `\{login\}` | Authentication login |
+| `\{password\}` | Authentication password |
+| `\{id\}` | Port ID |
+| `\{name\}` | Port name |
+| `\{external_ip\}` | External IP address |
+| `\{refresh_link\}` | Refresh IP link |
+
+## Built-in templates
+
+The library ships with **18 ready-to-use templates** accessible through
+the interactive wizard or the `GeoPicker`:
+
+| # | Format | Example |
+|---|--------|---------|
+| 1 | Standard URL | `socks5://user:pass@1.2.3.4:8080` |
+| 2 | HTTP URL | `http://user:pass@1.2.3.4:8080` |
+| 3 | SOCKS5 URL | `socks5://user:pass@1.2.3.4:8080` |
+| 4 | ip:port:login:password | `1.2.3.4:8080:user:pass` |
+| 5 | protocol://ip:port:login:password | `socks5://1.2.3.4:8080:user:pass` |
+| 6 | URL with refresh link | `socks5://user:pass@host:port[refresh_url]` |
+| 7 | Full URL with name | `socks5://user:pass@host:port:name[refresh_url]` |
+
+## Usage in Python
+
+```python
+from asockslib import ASocksClient
+
+async with ASocksClient(api_key="sk-...") as client:
+    ports = await client.list_ports()
+    for port in ports.items:
+        # Standard URL
+        print(port.proxy_url)
+
+        # Custom format
+        print(port.format_with_template("\{ip\}:\{port\}:\{login\}:\{password\}"))
+
+        # With protocol prefix
+        print(port.format_with_template("\{protocol\}://\{login\}:\{password\}@\{ip\}:\{port\}"))
+```
+
+## Usage in CLI
+
+### Interactive wizard
+
+```bash
+# The wizard prompts you to select a template
+asocks wizard
+```
+
+### Direct command
+
+```bash
+# Default format (standard URL)
+asocks get --country US --count 5
+
+# Custom template
+asocks get --country US --count 5 --proxy-template "\{ip\}:\{port\}:\{login\}:\{password\}"
+
+# Export with template
+asocks get --country US --count 10 --proxy-template "\{ip\}:\{port\}:\{login\}:\{password\}" --output proxies.txt
+```
+
+## Server-side templates (API)
+
+You can also create and manage templates on the ASocks server:
+
+```python
+from asockslib import ASocksClient, CreateTemplateRequest
+
+async with ASocksClient(api_key="sk-...") as client:
+    # Create a template
+    req = CreateTemplateRequest(
+        label="My Custom Format",
+        template="socks5://\{login\}:\{password\}@\{ip\}:\{port\}",
+    )
+    result = await client.create_template(req)
+
+    # List templates
+    data = await client.list_templates()
+
+    # Delete template
+    await client.delete_template(template_id=123)
+```
+
+## Next steps
+
+- [Quick Start](/asockslib/guides/quickstart/) — installation and first call
+- [CLI Usage](/asockslib/guides/cli/) — all CLI commands
+- [API Client Reference](/asockslib/reference/client/) — full client API
