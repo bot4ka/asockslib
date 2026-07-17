@@ -176,7 +176,6 @@ asocks delete 12345
 # Raw API
 asocks api countries
 asocks api generate 5 --country DE
-asocks api whitelist-add 203.0.113.42
 ```
 
 ## Documentation

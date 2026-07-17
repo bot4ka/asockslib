@@ -90,7 +90,10 @@ async def get_proxies(
             ttl=ttl,
             traffic_limit=traffic_limit,
         )
-        ports = await client.create_ports(req)
+        # refresh=True: freshly created ports are provisioned asynchronously
+        # and reject the first connection ("Invalid username/password") until
+        # they get an external IP — refresh forces provisioning up front.
+        ports = await client.create_ports(req, refresh=True)
         urls = [p.proxy_url for p in ports]
 
         if not verify or not urls:
@@ -103,8 +106,15 @@ async def get_proxies(
 
         async def _check(url: str) -> tuple[str, float | None]:
             async with sem:
-                result = await ping_proxy(url, timeout=timeout)
-                return url, result.latency_ms if result.is_alive else None
+                # Retry a couple of times: even after a refresh, a port can
+                # need a few seconds before the first connect succeeds.
+                for attempt in range(3):
+                    result = await ping_proxy(url, timeout=timeout)
+                    if result.is_alive:
+                        return url, result.latency_ms
+                    if attempt < 2:
+                        await asyncio.sleep(2.0)
+                return url, None
 
         checks = await asyncio.gather(*[_check(u) for u in urls])
 

@@ -1,6 +1,6 @@
 """Async HTTP client for the ASocks REST API v2.
 
-Covers all 25 endpoints at https://docs.asocks.com/en/.
+Covers all 23 endpoints at https://docs.asocks.com/en/.
 
 Features:
     - Automatic retry with configurable exponential back-off on rate-limit
@@ -47,7 +47,6 @@ from asockslib.models import (
     StateInfo,
     UpdatePortRequest,
     UpdateTemplateRequest,
-    WhitelistAddRequest,
 )
 
 logger = logging.getLogger("asockslib")
@@ -474,8 +473,23 @@ class ASocksClient:
         return PortInfo.model_validate(flat)
 
     @beartype
-    async def create_ports(self, request: CreatePortRequest) -> list[PortInfo]:
+    async def create_ports(
+        self,
+        request: CreatePortRequest,
+        *,
+        refresh: bool = False,
+    ) -> list[PortInfo]:
         """Create proxy ports.  ``POST /v2/proxy/create-port``
+
+        Args:
+            request: Port creation parameters.
+            refresh: Call :meth:`refresh_ip` on every created port before
+                returning. Freshly created ports (residential in particular)
+                are provisioned asynchronously — the first connection is often
+                rejected with "Invalid username/password" until the port gets
+                an external IP. A refresh forces provisioning so the returned
+                ports are usable immediately. Refresh failures are logged and
+                ignored.
 
         Raises:
             InsufficientBalanceError: Not enough funds.
@@ -493,7 +507,16 @@ class ASocksClient:
                 result.append(PortInfo.model_validate(item))
             except ValidationError as exc:
                 logger.warning("Skipping invalid port data: %s", exc)
+        if refresh and result:
+            await asyncio.gather(*(self._refresh_ip_quiet(p.id) for p in result))
         return result
+
+    async def _refresh_ip_quiet(self, port_id: int) -> None:
+        """Best-effort :meth:`refresh_ip` — failures logged, never raised."""
+        try:
+            await self.refresh_ip(port_id)
+        except ASocksError as exc:
+            logger.warning("refresh_ip(%d) after create failed: %s", port_id, exc)
 
     @beartype
     async def delete_port(self, port_id: int) -> bool:
@@ -544,8 +567,31 @@ class ASocksClient:
 
     @beartype
     async def update_port(self, port_id: int, request: UpdatePortRequest) -> dict[str, Any]:
-        """Update port parameters.  ``PATCH /v2/proxy/update-port/{id}``"""
+        """Update port parameters.  ``PATCH /v2/proxy/update-port/{id}``
+
+        The official docs mark every body field as optional, but the live
+        API rejects partial bodies: ``geo_country_ids``, ``connection_type``
+        and ``proxy_types`` are always required. Pass the port's current
+        values for fields you don't want to change. To rename a port
+        without touching anything else, use :meth:`change_port_name`.
+
+        Raises:
+            ValueError: One of the API-required fields is missing from
+                *request*.
+        """
         body = {k: v for k, v in request.model_dump().items() if v is not None}
+        missing = [
+            field
+            for field in ("geo_country_ids", "connection_type", "proxy_types")
+            if field not in body
+        ]
+        if missing:
+            raise ValueError(
+                f"The ASocks API requires geo_country_ids, connection_type and "
+                f"proxy_types in every update-port body (missing: {', '.join(missing)}). "
+                f"Pass the port's current values for fields you don't want to change; "
+                f"to rename a port use change_port_name() instead."
+            )
         result: dict[str, Any] = await self._request(
             "PATCH",
             f"/v2/proxy/update-port/{port_id}",
@@ -555,12 +601,34 @@ class ASocksClient:
 
     @beartype
     async def update_port_credentials(self, port_id: int, password: str) -> dict[str, Any]:
-        """Update credentials for a single port.  ``PUT /v2/proxy/{id}/update-credentials``"""
-        result: dict[str, Any] = await self._request(
-            "PUT",
-            f"/v2/proxy/{port_id}/update-credentials",
-            json_body={"password": password},
-        )
+        """Update credentials for a single port.  ``PUT /v2/proxy/{id}/update-credentials``
+
+        Warning:
+            The live API resolves the ``{id}`` here against a different
+            server-side model than the other port endpoints and may answer
+            404 ("No query results for model UserPort") for port IDs that
+            :meth:`get_port` accepts. If that happens, fall back to
+            :meth:`change_credentials`, which regenerates credentials for
+            every port on the account.
+
+        Raises:
+            PortNotFoundError: The endpoint could not resolve *port_id*
+                (see the warning above).
+        """
+        try:
+            result: dict[str, Any] = await self._request(
+                "PUT",
+                f"/v2/proxy/{port_id}/update-credentials",
+                json_body={"password": password},
+            )
+        except PortNotFoundError as exc:
+            raise PortNotFoundError(
+                f"update-credentials could not resolve port {port_id} "
+                f"(API said: {exc}). This endpoint is known to reject IDs that "
+                f"other port endpoints accept; use change_credentials() to "
+                f"regenerate credentials account-wide as a workaround.",
+                status_code=exc.status_code,
+            ) from exc
         return result
 
     # ── Templates ─────────────────────────────────────────────────────── #
@@ -608,27 +676,5 @@ class ASocksClient:
             "DELETE",
             "/v2/proxy-template/delete-template",
             params={"id": template_id},
-        )
-        return bool(self._as_dict(data).get("success", False))
-
-    # ── Whitelist ─────────────────────────────────────────────────────── #
-
-    @beartype
-    async def add_whitelist_ip(self, request: WhitelistAddRequest) -> dict[str, Any]:
-        """Add an IP to the whitelist.  ``POST /v2/whitelist/add``"""
-        result: dict[str, Any] = await self._request(
-            "POST",
-            "/v2/whitelist/add",
-            json_body=request.model_dump(),
-        )
-        return result
-
-    @beartype
-    async def delete_whitelist_ip(self, ip: str) -> bool:
-        """Remove an IP from the whitelist.  ``DELETE /v2/whitelist/delete``"""
-        data = await self._request(
-            "DELETE",
-            "/v2/whitelist/delete",
-            params={"ip": ip},
         )
         return bool(self._as_dict(data).get("success", False))

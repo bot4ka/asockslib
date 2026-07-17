@@ -23,7 +23,6 @@ from asockslib.models import (
     PortFilterParams,
     UpdatePortRequest,
     UpdateTemplateRequest,
-    WhitelistAddRequest,
 )
 
 if TYPE_CHECKING:
@@ -261,6 +260,61 @@ async def test_create_ports(httpx_mock: pytest_httpx.HTTPXMock, client: ASocksCl
     assert ports[0].id == 99
 
 
+_CREATED_PORT = {
+    "id": 99,
+    "host": "p.asocks.com",
+    "port": 5000,
+    "login": "u",
+    "password": "p",
+    "protocol": "socks5",
+    "country": "US",
+    "country_code": "US",
+    "city": "",
+    "state": "",
+    "status": 1,
+}
+
+
+@pytest.mark.asyncio
+async def test_create_ports_refresh(
+    httpx_mock: pytest_httpx.HTTPXMock, client: ASocksClient
+) -> None:
+    """refresh=True triggers a refresh_ip call for each created port."""
+    httpx_mock.add_response(
+        url=re.compile(r".*/v2/proxy/create-port\?.*"),
+        json={"success": True, "data": [_CREATED_PORT]},
+    )
+    httpx_mock.add_response(
+        url=re.compile(r".*/v2/proxy/refresh/99\?.*"),
+        json={"success": True},
+    )
+    req = CreatePortRequest(country_code="US", count=1)
+    ports = await client.create_ports(req, refresh=True)
+    assert len(ports) == 1
+    refresh_calls = [r for r in httpx_mock.get_requests() if "/v2/proxy/refresh/99" in str(r.url)]
+    assert len(refresh_calls) == 1
+
+
+@pytest.mark.asyncio
+async def test_create_ports_refresh_failure_ignored(
+    httpx_mock: pytest_httpx.HTTPXMock, client: ASocksClient
+) -> None:
+    """A failing refresh_ip must not break port creation."""
+    httpx_mock.add_response(
+        url=re.compile(r".*/v2/proxy/create-port\?.*"),
+        json={"success": True, "data": [_CREATED_PORT]},
+    )
+    httpx_mock.add_response(
+        url=re.compile(r".*/v2/proxy/refresh/99\?.*"),
+        status_code=404,
+        json={"message": "not found"},
+        is_reusable=True,
+    )
+    req = CreatePortRequest(country_code="US", count=1)
+    ports = await client.create_ports(req, refresh=True)
+    assert len(ports) == 1
+
+
 # -- delete port -----------------------------------------------------------
 
 
@@ -369,32 +423,6 @@ async def test_delete_template(httpx_mock: pytest_httpx.HTTPXMock, client: ASock
         json={"success": True},
     )
     ok = await client.delete_template(1)
-    assert ok is True
-
-
-# -- whitelist -------------------------------------------------------------
-
-
-@pytest.mark.asyncio
-async def test_add_whitelist_ip(httpx_mock: pytest_httpx.HTTPXMock, client: ASocksClient) -> None:
-    httpx_mock.add_response(
-        url=re.compile(r".*/v2/whitelist/add\?.*"),
-        json={"success": True, "items": [{"ip": "1.2.3.4"}]},
-    )
-    req = WhitelistAddRequest(ip="1.2.3.4", description="test")
-    data = await client.add_whitelist_ip(req)
-    assert data["success"] is True
-
-
-@pytest.mark.asyncio
-async def test_delete_whitelist_ip(
-    httpx_mock: pytest_httpx.HTTPXMock, client: ASocksClient
-) -> None:
-    httpx_mock.add_response(
-        url=re.compile(r".*/v2/whitelist/delete\?.*"),
-        json={"success": True},
-    )
-    ok = await client.delete_whitelist_ip("1.2.3.4")
     assert ok is True
 
 
@@ -602,9 +630,22 @@ async def test_update_port(httpx_mock: pytest_httpx.HTTPXMock, client: ASocksCli
         url=re.compile(r".*/v2/proxy/update-port/42\?.*"),
         json={"success": True, "message": {"id": 42}},
     )
-    req = UpdatePortRequest(name="new-name")
+    req = UpdatePortRequest(
+        name="new-name",
+        geo_country_ids=[1],
+        connection_type="keep-connection",
+        proxy_types=["residential"],
+    )
     result = await client.update_port(42, req)
     assert result["success"] is True
+
+
+@pytest.mark.asyncio
+async def test_update_port_rejects_partial_body(client: ASocksClient) -> None:
+    """The live API requires geo/connection/proxy-type fields — the client
+    must fail fast with a clear error instead of a server-side 422."""
+    with pytest.raises(ValueError, match="geo_country_ids, connection_type"):
+        await client.update_port(42, UpdatePortRequest(name="new-name"))
 
 
 # -- update_port_credentials -----------------------------------------------
@@ -620,6 +661,20 @@ async def test_update_port_credentials(
     )
     result = await client.update_port_credentials(42, "new-password")
     assert result["success"] is True
+
+
+@pytest.mark.asyncio
+async def test_update_port_credentials_not_found_hint(
+    httpx_mock: pytest_httpx.HTTPXMock, client: ASocksClient
+) -> None:
+    """A 404 from update-credentials is re-raised with a workaround hint."""
+    httpx_mock.add_response(
+        url=re.compile(r".*/v2/proxy/42/update-credentials\?.*"),
+        status_code=404,
+        json={"message": "No query results for model UserPort 42"},
+    )
+    with pytest.raises(PortNotFoundError, match="change_credentials"):
+        await client.update_port_credentials(42, "new-password")
 
 
 # -- update_template -------------------------------------------------------
@@ -933,18 +988,6 @@ async def test_delete_template_failure(
         json={"success": False},
     )
     ok = await client.delete_template(1)
-    assert ok is False
-
-
-@pytest.mark.asyncio
-async def test_delete_whitelist_ip_failure(
-    httpx_mock: pytest_httpx.HTTPXMock, client: ASocksClient
-) -> None:
-    httpx_mock.add_response(
-        url=re.compile(r".*/v2/whitelist/delete\?.*"),
-        json={"success": False},
-    )
-    ok = await client.delete_whitelist_ip("1.2.3.4")
     assert ok is False
 
 

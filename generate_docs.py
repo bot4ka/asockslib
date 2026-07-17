@@ -1117,71 +1117,6 @@ async with ASocksClient(api_key="sk-...") as client:
 - [API Client Reference](/reference/client/) — full client API
 """
 
-WHITELIST_EN = """\
----
-title: IP Whitelist
-description: Authenticate to proxies by IP address instead of login/password.
-sidebar:
-  order: 7
----
-
-import { Aside, Code } from '@astrojs/starlight/components';
-
-The **IP Whitelist** feature allows you to authenticate to ASocks proxies
-using your IP address instead of username/password. This is useful when
-your tool or framework doesn't support proxy authentication.
-
-## How it works
-
-1. You add your server/machine IP to the whitelist via API or CLI
-2. ASocks recognizes your IP and grants access without credentials
-3. You connect to proxies without `login:password` in the URL
-
-<Aside type="caution">
-Only add IPs you control. Anyone with a whitelisted IP can use your proxies.
-</Aside>
-
-## Usage in Python
-
-```python
-from asockslib import ASocksClient, WhitelistAddRequest
-
-async with ASocksClient(api_key="sk-...") as client:
-    # Add IP to whitelist
-    req = WhitelistAddRequest(ip="203.0.113.42", description="My server")
-    result = await client.add_whitelist_ip(req)
-    print(result)
-
-    # Delete IP from whitelist
-    await client.delete_whitelist_ip("203.0.113.42")
-```
-
-## Usage in CLI
-
-```bash
-# Add your current IP to whitelist
-asocks api whitelist-add --ip 203.0.113.42 --description "My server"
-
-# Remove IP from whitelist
-asocks api whitelist-delete --ip 203.0.113.42
-```
-
-## When to use whitelist
-
-| Scenario | Use whitelist? |
-|----------|---------------|
-| Tools without proxy auth support | Yes |
-| Static server with fixed IP | Yes |
-| Dynamic/home IP | No (use login/password) |
-| Shared hosting | No (IP may change) |
-
-## Next steps
-
-- [Quick Start](/guides/quickstart/) — installation and first call
-- [Proxy Templates](/guides/templates/) — customize proxy output format
-- [Smart Proxy](/guides/smart-proxy/) — auto-rotation and health checking
-"""
-
 EXAMPLES_EN = """\
 ---
 title: Usage Examples
@@ -1838,7 +1773,6 @@ asocks delete 12345
 # Сырой API
 asocks api countries
 asocks api generate 5 --country DE
-asocks api whitelist-add 203.0.113.42
 ```
 
 ## Форматы экспорта
@@ -1891,7 +1825,6 @@ STATIC_PAGES_EN: dict[str, str] = {
     "guides/proxy-pool.mdx": PROXY_POOL_GUIDE_EN,
     "guides/concepts.mdx": CONCEPTS_EN,
     "guides/templates.mdx": TEMPLATES_EN,
-    "guides/whitelist.mdx": WHITELIST_EN,
 }
 
 STATIC_PAGES_RU: dict[str, str] = {

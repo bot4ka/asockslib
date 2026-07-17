@@ -53,7 +53,6 @@ from asockslib.models import (
     StateInfo,
     UpdatePortRequest,
     UpdateTemplateRequest,
-    WhitelistAddRequest,
 )
 from asockslib.proxy_pool import PoolStrategy, ProxyPool, ProxyPoolStats, ProxyStore
 from asockslib.quick import get_proxies, get_proxies_sync
@@ -105,7 +104,6 @@ __all__ = [
     "StateInfo",
     "UpdatePortRequest",
     "UpdateTemplateRequest",
-    "WhitelistAddRequest",
     "benchmark_proxies",
     "find_best_proxies",
     "get_proxies",
@@ -114,4 +112,4 @@ __all__ = [
     "select_best_proxies",
 ]
 
-__version__ = "0.1.0"
+__version__ = "0.1.1"

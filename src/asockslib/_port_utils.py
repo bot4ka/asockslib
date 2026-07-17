@@ -117,7 +117,11 @@ class PortManagerMixin:
             page += 1
 
     async def _create_ports(self: _HasClient, quantity: int) -> list[PortInfo]:  # type: ignore[misc]
-        """Create new ports with the configured parameters."""
+        """Create new ports with the configured parameters.
+
+        ``refresh=True`` forces provisioning of the fresh ports so their
+        first health-check doesn't fail with an auth error.
+        """
         request = CreatePortRequest(
             country_code=self._country_code,
             city=self._city,
@@ -129,4 +133,4 @@ class PortManagerMixin:
             ttl=self._ttl,
             traffic_limit=self._traffic_limit,
         )
-        return await self._client.create_ports(request)
+        return await self._client.create_ports(request, refresh=True)

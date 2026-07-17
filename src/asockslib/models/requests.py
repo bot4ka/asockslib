@@ -1,7 +1,7 @@
 """Request models for the ASocks API v2.
 
 Bodies and query parameters for mutations: port creation, updates,
-template management, and whitelist operations.
+and template management.
 """
 
 from __future__ import annotations
@@ -54,7 +54,14 @@ class PortFilterParams(BaseModel):
 
 
 class UpdatePortRequest(BaseModel):
-    """Body for ``PATCH /v2/proxy/update-port/{id}``."""
+    """Body for ``PATCH /v2/proxy/update-port/{id}``.
+
+    All fields are declared optional to mirror the official docs, but the
+    live API rejects bodies missing ``geo_country_ids``, ``connection_type``
+    or ``proxy_types`` — :meth:`asockslib.client.ASocksClient.update_port`
+    validates this before sending. Pass the port's current values for
+    fields you don't want to change.
+    """
 
     geo_country_ids: list[int] | None = Field(default=None, description="Country IDs")
     geo_state_id: int | None = Field(default=None, description="State ID")
@@ -80,10 +87,3 @@ class UpdateTemplateRequest(BaseModel):
 
     label: str | None = Field(default=None, description="Template label")
     template: str | None = Field(default=None, description="Template pattern")
-
-
-class WhitelistAddRequest(BaseModel):
-    """Body for ``POST /v2/whitelist/add``."""
-
-    ip: str = Field(description="IP address to whitelist")
-    description: str = Field(default="", description="Description for the IP entry")

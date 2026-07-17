@@ -22,7 +22,6 @@ from asockslib.models import (
     CreatePortRequest,
     CreateTemplateRequest,
     StateInfo,
-    WhitelistAddRequest,
 )
 
 
@@ -342,36 +341,3 @@ def register_api_commands(api_app: typer.Typer) -> None:
         console.print(
             f"[green]Template {template_id} deleted.[/green]" if ok else "[red]Failed.[/red]"
         )
-
-    @api_app.command(name="whitelist-add")
-    @beartype
-    def whitelist_add(
-        ip: str = typer.Argument(..., help="IP address"),
-        description: str = typer.Option("", "--desc", "-d", help="Description"),
-    ) -> None:
-        """Add IP to whitelist (POST /v2/whitelist/add)."""
-
-        async def _add() -> dict[str, Any]:
-            async with ASocksClient(api_key=get_api_key()) as client:
-                req = WhitelistAddRequest(ip=ip, description=description)
-                return await client.add_whitelist_ip(req)
-
-        data = run_async(_add())
-        if data.get("success"):
-            console.print(f"[green]IP {ip} added to whitelist.[/green]")
-        else:
-            console.print(f"[red]Failed to add {ip}.[/red]")
-
-    @api_app.command(name="whitelist-remove")
-    @beartype
-    def whitelist_remove(
-        ip: str = typer.Argument(..., help="IP address"),
-    ) -> None:
-        """Remove IP from whitelist (DELETE /v2/whitelist/delete)."""
-
-        async def _remove() -> bool:
-            async with ASocksClient(api_key=get_api_key()) as client:
-                return await client.delete_whitelist_ip(ip)
-
-        ok = run_async(_remove())
-        console.print(f"[green]IP {ip} removed.[/green]" if ok else "[red]Failed.[/red]")

@@ -38,7 +38,6 @@ export default defineConfig({
 						{ label: 'Smart Proxy', translations: { ru: 'Smart Proxy' }, slug: 'guides/smart-proxy' },
 						{ label: 'Proxy Pool', translations: { ru: 'Proxy Pool' }, slug: 'guides/proxy-pool' },
 						{ label: 'Proxy Templates', translations: { ru: 'Шаблоны прокси' }, slug: 'guides/templates' },
-						{ label: 'IP Whitelist', translations: { ru: 'IP-белый список' }, slug: 'guides/whitelist' },
 					],
 				},
 				{

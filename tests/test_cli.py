@@ -873,84 +873,6 @@ class TestTemplateDeleteCommand:
 
 
 # --------------------------------------------------------------------------- #
-#  whitelist-add command
-# --------------------------------------------------------------------------- #
-
-
-class TestWhitelistAddCommand:
-    """Tests for 'asocks whitelist-add'."""
-
-    def test_whitelist_add_success(self) -> None:
-        with (
-            patch.dict(os.environ, {"ASOCKS_API_KEY": "k"}),
-            patch("asockslib.cli.api_commands.ASocksClient") as mock_cls,
-        ):
-            mock_client = AsyncMock()
-            mock_client.add_whitelist_ip = AsyncMock(return_value={"success": True})
-            mock_cls.return_value.__aenter__ = AsyncMock(return_value=mock_client)
-            mock_cls.return_value.__aexit__ = AsyncMock(return_value=False)
-            result = runner.invoke(app, ["api", "whitelist-add", "1.2.3.4"])
-            assert "added" in result.output
-
-    def test_whitelist_add_failure(self) -> None:
-        with (
-            patch.dict(os.environ, {"ASOCKS_API_KEY": "k"}),
-            patch("asockslib.cli.api_commands.ASocksClient") as mock_cls,
-        ):
-            mock_client = AsyncMock()
-            mock_client.add_whitelist_ip = AsyncMock(return_value={"success": False})
-            mock_cls.return_value.__aenter__ = AsyncMock(return_value=mock_client)
-            mock_cls.return_value.__aexit__ = AsyncMock(return_value=False)
-            result = runner.invoke(app, ["api", "whitelist-add", "1.2.3.4"])
-            assert "Failed" in result.output
-
-    def test_whitelist_add_with_description(self) -> None:
-        with (
-            patch.dict(os.environ, {"ASOCKS_API_KEY": "k"}),
-            patch("asockslib.cli.api_commands.ASocksClient") as mock_cls,
-        ):
-            mock_client = AsyncMock()
-            mock_client.add_whitelist_ip = AsyncMock(return_value={"success": True})
-            mock_cls.return_value.__aenter__ = AsyncMock(return_value=mock_client)
-            mock_cls.return_value.__aexit__ = AsyncMock(return_value=False)
-            result = runner.invoke(app, ["api", "whitelist-add", "1.2.3.4", "--desc", "My IP"])
-            assert "added" in result.output
-
-
-# --------------------------------------------------------------------------- #
-#  whitelist-remove command
-# --------------------------------------------------------------------------- #
-
-
-class TestWhitelistRemoveCommand:
-    """Tests for 'asocks whitelist-remove'."""
-
-    def test_whitelist_remove_success(self) -> None:
-        with (
-            patch.dict(os.environ, {"ASOCKS_API_KEY": "k"}),
-            patch("asockslib.cli.api_commands.ASocksClient") as mock_cls,
-        ):
-            mock_client = AsyncMock()
-            mock_client.delete_whitelist_ip = AsyncMock(return_value=True)
-            mock_cls.return_value.__aenter__ = AsyncMock(return_value=mock_client)
-            mock_cls.return_value.__aexit__ = AsyncMock(return_value=False)
-            result = runner.invoke(app, ["api", "whitelist-remove", "1.2.3.4"])
-            assert "removed" in result.output
-
-    def test_whitelist_remove_failure(self) -> None:
-        with (
-            patch.dict(os.environ, {"ASOCKS_API_KEY": "k"}),
-            patch("asockslib.cli.api_commands.ASocksClient") as mock_cls,
-        ):
-            mock_client = AsyncMock()
-            mock_client.delete_whitelist_ip = AsyncMock(return_value=False)
-            mock_cls.return_value.__aenter__ = AsyncMock(return_value=mock_client)
-            mock_cls.return_value.__aexit__ = AsyncMock(return_value=False)
-            result = runner.invoke(app, ["api", "whitelist-remove", "1.2.3.4"])
-            assert "Failed" in result.output
-
-
-# --------------------------------------------------------------------------- #
 #  CLI Error Propagation — API exceptions raised inside CLI commands
 # --------------------------------------------------------------------------- #
 
@@ -1138,22 +1060,6 @@ class TestCLIErrorPropagation:
             result = runner.invoke(
                 app, ["api", "template-create", "--label", "t", "--template", "{ip}"]
             )
-            assert result.exit_code == 1
-            assert "Error" in result.output
-
-    def test_whitelist_add_error(self) -> None:
-        """Whitelist add with API error."""
-        with (
-            patch.dict(os.environ, {"ASOCKS_API_KEY": "k"}),
-            patch("asockslib.cli.api_commands.ASocksClient") as mock_cls,
-        ):
-            mock_client = AsyncMock()
-            mock_client.add_whitelist_ip = AsyncMock(
-                side_effect=ASocksError("fail", status_code=500)
-            )
-            mock_cls.return_value.__aenter__ = AsyncMock(return_value=mock_client)
-            mock_cls.return_value.__aexit__ = AsyncMock(return_value=False)
-            result = runner.invoke(app, ["api", "whitelist-add", "1.2.3.4"])
             assert result.exit_code == 1
             assert "Error" in result.output
 
@@ -1362,8 +1268,6 @@ class TestCLIEdgeCases:
             "templates",
             "template-create",
             "template-delete",
-            "whitelist-add",
-            "whitelist-remove",
         ]
         for cmd in api_commands:
             result = runner.invoke(app, ["api", cmd, "--help"])

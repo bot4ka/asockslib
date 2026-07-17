@@ -7,7 +7,7 @@ sidebar:
 
 Async HTTP client for the ASocks REST API v2.
 
-Covers all 25 endpoints at https://docs.asocks.com/en/.
+Covers all 23 endpoints at https://docs.asocks.com/en/.
 
 Features:
     - Automatic retry with configurable exponential back-off on rate-limit
@@ -40,10 +40,6 @@ Args:
         *retry_backoff_max*). Set to ``0`` to retry with no delay.
     retry_backoff_max: Upper bound on the back-off delay in seconds.
 
-### `add_whitelist_ip(self, request: asockslib.models.requests.WhitelistAddRequest) -> dict[str, typing.Any]`
-
-Add an IP to the whitelist.  ``POST /v2/whitelist/add``
-
 ### `archive_port(self, port_id: int) -> bool`
 
 Archive a proxy port.  ``PATCH /v2/proxy/archive-port``
@@ -60,9 +56,19 @@ Rename a proxy port.  ``PATCH /v2/proxy/change-name``
 
 Close the underlying HTTP client.
 
-### `create_ports(self, request: asockslib.models.requests.CreatePortRequest) -> list[asockslib.models.port.PortInfo]`
+### `create_ports(self, request: asockslib.models.requests.CreatePortRequest, *, refresh: bool = False) -> list[asockslib.models.port.PortInfo]`
 
 Create proxy ports.  ``POST /v2/proxy/create-port``
+
+Args:
+    request: Port creation parameters.
+    refresh: Call :meth:`refresh_ip` on every created port before
+        returning. Freshly created ports (residential in particular)
+        are provisioned asynchronously — the first connection is often
+        rejected with "Invalid username/password" until the port gets
+        an external IP. A refresh forces provisioning so the returned
+        ports are usable immediately. Refresh failures are logged and
+        ignored.
 
 Raises:
     InsufficientBalanceError: Not enough funds.
@@ -78,10 +84,6 @@ Delete a proxy port.  ``DELETE /v2/proxy/delete-port``
 ### `delete_template(self, template_id: int) -> bool`
 
 Delete a proxy template.  ``DELETE /v2/proxy-template/delete-template``
-
-### `delete_whitelist_ip(self, ip: str) -> bool`
-
-Remove an IP from the whitelist.  ``DELETE /v2/whitelist/delete``
 
 ### `get_asns(self, country_id: int | None = None, state_id: int | None = None, city_id: int | None = None, page: int | None = None) -> asockslib.models.directory.ASNListResponse`
 
@@ -165,9 +167,31 @@ Restore a port from the archive.  ``PATCH /v2/proxy/unarchive``
 
 Update port parameters.  ``PATCH /v2/proxy/update-port/\{id\}``
 
+The official docs mark every body field as optional, but the live
+API rejects partial bodies: ``geo_country_ids``, ``connection_type``
+and ``proxy_types`` are always required. Pass the port's current
+values for fields you don't want to change. To rename a port
+without touching anything else, use :meth:`change_port_name`.
+
+Raises:
+    ValueError: One of the API-required fields is missing from
+        *request*.
+
 ### `update_port_credentials(self, port_id: int, password: str) -> dict[str, typing.Any]`
 
 Update credentials for a single port.  ``PUT /v2/proxy/\{id\}/update-credentials``
+
+Warning:
+    The live API resolves the ``\{id\}`` here against a different
+    server-side model than the other port endpoints and may answer
+    404 ("No query results for model UserPort") for port IDs that
+    :meth:`get_port` accepts. If that happens, fall back to
+    :meth:`change_credentials`, which regenerates credentials for
+    every port on the account.
+
+Raises:
+    PortNotFoundError: The endpoint could not resolve *port_id*
+        (see the warning above).
 
 ### `update_template(self, template_id: int, request: asockslib.models.requests.UpdateTemplateRequest) -> dict[str, typing.Any]`
 

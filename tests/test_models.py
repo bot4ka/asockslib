@@ -26,7 +26,6 @@ from asockslib.models import (
     StateInfo,
     UpdatePortRequest,
     UpdateTemplateRequest,
-    WhitelistAddRequest,
 )
 
 
@@ -190,19 +189,6 @@ class TestUpdateTemplateRequest:
         req = UpdateTemplateRequest(label="updated")
         assert req.label == "updated"
         assert req.template is None
-
-
-class TestWhitelistAddRequest:
-    """Tests for WhitelistAddRequest."""
-
-    def test_ip_required(self) -> None:
-        req = WhitelistAddRequest(ip="1.2.3.4")
-        assert req.ip == "1.2.3.4"
-        assert req.description == ""
-
-    def test_missing_ip(self) -> None:
-        with pytest.raises(ValidationError):
-            WhitelistAddRequest()  # type: ignore[call-arg]
 
 
 # --------------------------------------------------------------------------- #

@@ -1,6 +1,6 @@
 """Pydantic models for ASocks API v2 requests and responses.
 
-Covers all 25 endpoints documented at https://docs.asocks.com/en/.
+Covers all 23 endpoints documented at https://docs.asocks.com/en/.
 
 Modules:
     - :mod:`.enums` — port statuses and connection/proxy type identifiers.
@@ -41,7 +41,6 @@ from asockslib.models.requests import (
     PortFilterParams,
     UpdatePortRequest,
     UpdateTemplateRequest,
-    WhitelistAddRequest,
 )
 from asockslib.models.responses import (
     BalanceResponse,
@@ -68,5 +67,4 @@ __all__ = [
     "StateInfo",
     "UpdatePortRequest",
     "UpdateTemplateRequest",
-    "WhitelistAddRequest",
 ]
