@@ -306,7 +306,7 @@ import { Card, CardGrid } from "@astrojs/starlight/components";
 QUICKSTART_EN = """\
 ---
 title: Quick Start
-description: Install asocks and make your first API call in under 2 minutes.
+description: Install asockslib and make your first API call in under 2 minutes.
 sidebar:
   order: 1
 ---
@@ -314,13 +314,13 @@ sidebar:
 ## Installation
 
 ```bash
-pip install asocks
+pip install asockslib
 ```
 
 Or with **uv**:
 
 ```bash
-uv add asocks
+uv add asockslib
 ```
 
 ## Set your API key
@@ -333,7 +333,7 @@ export ASOCKS_API_KEY="sk-your-api-key"
 
 ```python
 import asyncio
-from asocks import ASocksClient
+from asockslib import ASocksClient
 
 async def main():
     async with ASocksClient(api_key="sk-...") as client:
@@ -515,7 +515,7 @@ The `SmartProxy` class wraps `ASocksClient` to provide a high-level proxy pool w
 
 ```python
 import asyncio
-from asocks import ASocksClient, SmartProxy
+from asockslib import ASocksClient, SmartProxy
 
 async def main():
     async with ASocksClient(api_key="sk-...") as client:
@@ -564,7 +564,7 @@ print(f"{replaced} proxies were replaced")
 
 ```python
 import httpx
-from asocks import ASocksClient, SmartProxy
+from asockslib import ASocksClient, SmartProxy
 
 async def scrape():
     async with ASocksClient(api_key="sk-...") as client:
@@ -580,7 +580,7 @@ async def scrape():
 ## Error handling
 
 ```python
-from asocks.exceptions import NoAvailableProxyError
+from asockslib.exceptions import NoAvailableProxyError
 
 try:
     proxy = await smart.get_proxy()

@@ -1,6 +1,6 @@
 [project]
 name = "asockslib"
-version = "0.3.0"
+version = "0.1.0"
 description = "Premium Python library and CLI for the ASocks Proxy API"
 readme = "README.md"
 license = "MIT"

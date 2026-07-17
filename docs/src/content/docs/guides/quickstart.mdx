@@ -1,6 +1,6 @@
 ---
 title: Quick Start
-description: Install asocks and make your first API call in under 2 minutes.
+description: Install asockslib and make your first API call in under 2 minutes.
 sidebar:
   order: 1
 ---
@@ -8,13 +8,13 @@ sidebar:
 ## Installation
 
 ```bash
-pip install asocks
+pip install asockslib
 ```
 
 Or with **uv**:
 
 ```bash
-uv add asocks
+uv add asockslib
 ```
 
 ## Set your API key
@@ -27,7 +27,7 @@ export ASOCKS_API_KEY="sk-your-api-key"
 
 ```python
 import asyncio
-from asocks import ASocksClient
+from asockslib import ASocksClient
 
 async def main():
     async with ASocksClient(api_key="sk-...") as client:
